@@ -354,7 +354,7 @@ def render_financial_auditor():
                 bytes_processed = uploaded_file.tell()
                 cols = [c.lower() for c in df_chunk.columns]
                 
-                desc_col = next((c for c in df_chunk.columns if any(k in c.lower() for k in ['desc', 'detail', 'item'])), None)
+                desc_col = next((c for c in df_chunk.columns if any(k in c.lower() for k in ['desc', 'detail', 'item', 'type'])), None)
                 if not desc_col:
                     st.error("❌ Could not find a 'Description' or 'Details' column in the CSV.")
                     st.stop()
