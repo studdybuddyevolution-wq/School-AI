@@ -168,29 +168,18 @@ def render_financial_auditor():
 
     col_a, col_b = st.columns(2)
     with col_a:
-        scale_option = st.selectbox(
-            "Select Data Scale to Simulate",
-            ["10,000 Transactions (~1MB)", "1 Million Transactions (~100MB)", "10 Million Transactions (~1GB)"],
-            index=0
-        )
+        uploaded_file = st.file_uploader("📂 Upload Transaction Ledger (CSV - up to 1 GB)", type=["csv"])
         cost_threshold = st.number_input("🚨 Flag transactions above (Rs)", 1000, 200000, 50000, 5000, key="thresh")
 
     with col_b:
-        st.info("💡 **Streaming Mode Active:** Data is generated and processed in small chunks (10,000 rows/batch). "
-                "This ensures memory usage remains flat regardless of the total data size, mimicking production Big Data pipelines.")
+        st.info("💡 **Streaming Mode Active:** Data is processed in small chunks (10,000 rows/batch). "
+                "This ensures memory usage remains flat regardless of the total file size, mimicking production Big Data pipelines.")
+        st.markdown("**Required Columns (or similar names):**\n- `Description` (or `Details`, `Item`)\n- `Amount` (or `Cost`, `Value`)")
 
     if st.button("🔬 Start Streaming Audit Scan"):
-        import random
-        # Determine total transactions based on selection
-        if "10,000" in scale_option:
-            total_txns = 10_000
-        elif "1 Million" in scale_option:
-            total_txns = 1_000_000
-        else:
-            total_txns = 10_000_000
-
-        chunk_size = 10_000
-        total_chunks = total_txns // chunk_size
+        if not uploaded_file:
+            st.warning("⚠️ Please upload a CSV file first.")
+            st.stop()
 
         st.markdown("### 📡 Live Audit Dashboard")
         
@@ -206,21 +195,7 @@ def render_financial_auditor():
         log_ph = st.empty()
 
         NON_EDU = ["gaming", "console", "massage", "chair", "gala", "dinner", "luxury"]
-        DESCRIPTIONS = [
-            "Grade 10 Science Lab Beakers (x50)",
-            "Gaming Console for Admin Office",
-            "Library Books - English Literature",
-            "Luxury Massage Chair - Principal Suite",
-            "Projector Bulbs Replacement (x12)",
-            "Catering - Staff Annual Gala Dinner",
-            "Student Stationery Bulk Purchase",
-            "New Whiteboards for Block B",
-            "Sports Equipment - Basketballs",
-            "First Aid Supplies Refill",
-        ]
-        CATEGORIES = ["Lab Supplies", "Electronics", "Library", "Furniture", "AV Equipment", "Events", "Stationery", "Classroom", "Sports", "Medical"]
-        APPROVERS = ["VP Academic", "Principal", "Librarian", "IT Admin", "VP Admin", "Sports Director", "School Nurse"]
-
+        
         total_processed = 0
         total_flags = 0
         flagged_amount = 0
@@ -228,70 +203,102 @@ def render_financial_auditor():
         
         start_time = time.time()
         
-        # Stream processing loop
-        for chunk_idx in range(total_chunks):
-            # 1. GENERATE CHUNK (Simulate reading a chunk from a massive continuous stream)
-            chunk_data = {
-                "Txn ID": [f"TXN-{total_processed + i + 1}" for i in range(chunk_size)],
-                "Description": random.choices(DESCRIPTIONS, k=chunk_size),
-                "Category": random.choices(CATEGORIES, k=chunk_size),
-                "Amount (Rs)": [random.randint(500, 150000) for _ in range(chunk_size)],
-                "Approved By": random.choices(APPROVERS, k=chunk_size)
-            }
-            df_chunk = pd.DataFrame(chunk_data)
+        try:
+            # Determine total file size for progress bar estimation (since we stream)
+            uploaded_file.seek(0, 2) # Go to end
+            file_size = uploaded_file.tell()
+            uploaded_file.seek(0) # Go back to start
+            bytes_processed = 0
 
-            # 2. PROCESS CHUNK (Vectorised Rule Engine)
-            df_chunk['desc_lower'] = df_chunk['Description'].str.lower()
+            # Stream processing loop via Pandas chunking
+            chunk_iterator = pd.read_csv(uploaded_file, chunksize=10000)
             
-            # Rule 1: Non-Educational
-            pattern = '|'.join(NON_EDU)
-            mask_rule1 = df_chunk['desc_lower'].str.contains(pattern)
-            
-            # Rule 2: High Cost
-            mask_rule2 = df_chunk['Amount (Rs)'] > cost_threshold
-            
-            # Combine flags
-            flagged_rows = df_chunk[mask_rule1 | mask_rule2]
-            
-            # Update aggregates
-            total_processed += chunk_size
-            total_flags += len(flagged_rows)
-            flagged_amount += int(flagged_rows['Amount (Rs)'].sum())
-            total_amount += int(df_chunk['Amount (Rs)'].sum())
+            for chunk_idx, df_chunk in enumerate(chunk_iterator):
+                # Update progress based on bytes read
+                bytes_processed += df_chunk.memory_usage(deep=True).sum()
+                
+                # Try to auto-detect columns
+                cols = [c.lower() for c in df_chunk.columns]
+                
+                # Detect Description column
+                desc_col = next((c for c in df_chunk.columns if any(k in c.lower() for k in ['desc', 'detail', 'item'])), None)
+                if not desc_col:
+                    st.error("❌ Could not find a 'Description' or 'Details' column in the CSV.")
+                    st.stop()
+                    
+                # Detect Amount column
+                amount_col = next((c for c in df_chunk.columns if any(k in c.lower() for k in ['amount', 'cost', 'value', 'price', 'rs'])), None)
+                if not amount_col:
+                    st.error("❌ Could not find an 'Amount' or 'Cost' column in the CSV.")
+                    st.stop()
 
-            # 3. UPDATE LIVE UI
-            pct = int(((chunk_idx + 1) / total_chunks) * 100)
-            elapsed = time.time() - start_time
-            txns_per_sec = total_processed / elapsed if elapsed > 0 else 0
-            
-            # Limit UI updates to not freeze the browser (update every 5% or on last chunk)
-            update_interval = max(1, total_chunks // 20)
-            if chunk_idx % update_interval == 0 or chunk_idx == total_chunks - 1:
-                prog_bar.progress(pct, text=f"Processing chunk {chunk_idx+1}/{total_chunks} ({pct}%) - Streaming ~{txns_per_sec:,.0f} txns/sec")
+                # Ensure amount is numeric (remove commas, currency symbols if needed)
+                if df_chunk[amount_col].dtype == object:
+                    df_chunk[amount_col] = df_chunk[amount_col].astype(str).str.replace(r'[^\d.]', '', regex=True)
+                    df_chunk[amount_col] = pd.to_numeric(df_chunk[amount_col], errors='coerce').fillna(0)
+
+                # 2. PROCESS CHUNK (Vectorised Rule Engine)
+                df_chunk['desc_lower'] = df_chunk[desc_col].astype(str).str.lower()
                 
-                m1_ph.metric("Processed Transactions", f"{total_processed:,}")
-                m2_ph.metric("Anomalies Flagged", f"{total_flags:,}")
-                m3_ph.metric("Flagged Value", f"Rs {flagged_amount:,.0f}")
-                m4_ph.metric("Memory Usage", "Constant (~45 MB)", help="Because of chunking, memory usage stays flat.")
+                # Rule 1: Non-Educational
+                pattern = '|'.join(NON_EDU)
+                mask_rule1 = df_chunk['desc_lower'].str.contains(pattern)
                 
-                with log_ph.container():
-                    st.caption(f"🔴 **Recent Anomalies Detected (Live Tail — Last 5 from Chunk {chunk_idx+1})**")
-                    st.dataframe(flagged_rows[['Txn ID', 'Description', 'Amount (Rs)', 'Approved By']].tail(5), hide_index=True)
+                # Rule 2: High Cost
+                mask_rule2 = df_chunk[amount_col] > cost_threshold
+                
+                # Combine flags
+                flagged_rows = df_chunk[mask_rule1 | mask_rule2]
+                
+                # Update aggregates
+                total_processed += len(df_chunk)
+                total_flags += len(flagged_rows)
+                flagged_amount += int(flagged_rows[amount_col].sum())
+                total_amount += int(df_chunk[amount_col].sum())
+
+                # 3. UPDATE LIVE UI
+                # Cap pct at 100
+                pct = min(100, int((bytes_processed / file_size) * 100)) if file_size > 0 else 100
+                elapsed = time.time() - start_time
+                txns_per_sec = total_processed / elapsed if elapsed > 0 else 0
+                
+                # Limit UI updates to not freeze the browser
+                if chunk_idx % 2 == 0:
+                    prog_bar.progress(pct, text=f"Processing chunk {chunk_idx+1} ({pct}%) - Streaming ~{txns_per_sec:,.0f} txns/sec")
+                    
+                    m1_ph.metric("Processed Transactions", f"{total_processed:,}")
+                    m2_ph.metric("Anomalies Flagged", f"{total_flags:,}")
+                    m3_ph.metric("Flagged Value", f"Rs {flagged_amount:,.0f}")
+                    m4_ph.metric("Memory Usage", "Constant (~45 MB)", help="Because of chunking, memory usage stays flat.")
+                    
+                    if not flagged_rows.empty:
+                        with log_ph.container():
+                            st.caption(f"🔴 **Recent Anomalies Detected (Live Tail — Last 5 from Chunk {chunk_idx+1})**")
+                            # Try to include an ID or Date if available, else just the required cols
+                            disp_cols = [c for c in df_chunk.columns if c != 'desc_lower']
+                            st.dataframe(flagged_rows[disp_cols].tail(5), hide_index=True)
+                
+                # Tiny sleep to let Streamlit's UI thread render updates
+                time.sleep(0.01)
+                
+            prog_bar.progress(100, text="Finalizing...")
+            time.sleep(0.1)
+            prog_bar.empty()
             
-            # Tiny sleep to let Streamlit's UI thread render updates
-            time.sleep(0.01)
+            st.markdown("---")
+            st.markdown("### 📈 Final Audit Report")
+            st.success(f"✅ Continuous audit complete! Processed **{total_processed:,} transactions** in **{time.time() - start_time:.2f} seconds**.", icon="✅")
             
-        prog_bar.empty()
-        
-        st.markdown("---")
-        st.markdown("### 📈 Final Audit Report")
-        st.success(f"✅ Continuous audit complete! Processed **{total_processed:,} transactions** in **{time.time() - start_time:.2f} seconds**.", icon="✅")
-        
-        s1, s2, s3, s4 = st.columns(4)
-        s1.metric("Total Spend Analysed", f"Rs {total_amount:,.0f}")
-        s2.metric("Flagged Spend", f"Rs {flagged_amount:,.0f}")
-        s3.metric("Flags Raised", f"{total_flags:,}")
-        s4.metric("Compliance Rate", f"{(total_processed - total_flags) / total_processed * 100:.2f}%")
+            s1, s2, s3, s4 = st.columns(4)
+            s1.metric("Total Spend Analysed", f"Rs {total_amount:,.0f}")
+            s2.metric("Flagged Spend", f"Rs {flagged_amount:,.0f}")
+            s3.metric("Flags Raised", f"{total_flags:,}")
+            
+            comp_rate = ((total_processed - total_flags) / total_processed * 100) if total_processed > 0 else 100
+            s4.metric("Compliance Rate", f"{comp_rate:.2f}%")
+            
+        except Exception as e:
+            st.error(f"🚨 Error processing CSV: {e}")
 
 
 # ═══════════════════════════════════════════════════════════
