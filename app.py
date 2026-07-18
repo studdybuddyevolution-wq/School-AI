@@ -312,7 +312,7 @@ def render_financial_auditor():
     col_a, col_b = st.columns(2)
     with col_a:
         uploaded_file = st.file_uploader("📂 Upload Transaction Ledger (CSV - up to 1 GB)", type=["csv"])
-        cost_threshold = st.number_input("🚨 Flag transactions above (Rs)", 1000, 200000, 50000, 5000, key="thresh")
+        cost_threshold = st.number_input("🚨 Flag transactions above (Rs)", 1000, 10000000, 200000, 5000, key="thresh")
 
     with col_b:
         st.info("💡 **Streaming Mode Active:** Data is processed in small chunks (10,000 rows/batch). "
@@ -356,7 +356,7 @@ def render_financial_auditor():
                 
                 desc_col = next((c for c in df_chunk.columns if any(k in c.lower() for k in ['desc', 'detail', 'item', 'type'])), None)
                 if not desc_col:
-                    st.error("❌ Could not find a 'Description' or 'Details' column in the CSV.")
+                    st.error("❌ Could not find a 'Description', 'Details', or 'type' column in the CSV.")
                     st.stop()
                     
                 amount_col = next((c for c in df_chunk.columns if any(k in c.lower() for k in ['amount', 'cost', 'value', 'price', 'rs'])), None)
@@ -368,14 +368,19 @@ def render_financial_auditor():
                     df_chunk[amount_col] = df_chunk[amount_col].astype(str).str.replace(r'[^\d.]', '', regex=True)
                     df_chunk[amount_col] = pd.to_numeric(df_chunk[amount_col], errors='coerce').fillna(0)
 
+                # Force description to string type and handle missing/NaN values safely
                 df_chunk['desc_lower'] = df_chunk[desc_col].astype(str).str.lower()
-              # Rule 1: Flag if description contains bad keywords
-mask_rule1 = df_chunk['desc_lower'].str.contains(pattern)
+                pattern = '|'.join(NON_EDU)
 
-# Rule 2 (PaySim specific): Flag only if it's a TRANSFER AND over the threshold
-mask_rule2 = (df_chunk['desc_lower'] == 'transfer') & (df_chunk[amount_col] > cost_threshold)
+                # Rule 1: Flag if description contains bad keywords (safely ignoring blanks)
+                mask_rule1 = df_chunk['desc_lower'].str.contains(pattern, na=False)
 
-flagged_rows = df_chunk[mask_rule1 | mask_rule2]
+                # Rule 2 (PaySim specific): Flag only if it's exactly a TRANSFER AND over the threshold
+                mask_rule2 = (df_chunk['desc_lower'] == 'transfer') & (df_chunk[amount_col] > cost_threshold)
+
+                # Merge rules and filter out matching records
+                flagged_rows = df_chunk[mask_rule1 | mask_rule2]
+                
                 total_processed += len(df_chunk)
                 total_flags += len(flagged_rows)
                 flagged_amount += int(flagged_rows[amount_col].sum())
