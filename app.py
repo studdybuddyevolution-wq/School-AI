@@ -481,9 +481,9 @@ def render_admin_orchestrator():
             "Content-Type": "application/json"
         }
         
-        # Using the lightning-fast Qwen 2.5 7B model!
+      # Using Meta's lightning-fast Llama 3 8B on the free tier!
         payload = {
-            "model": "qwen/qwen-2.5-7b-instruct:free", 
+            "model": "meta-llama/llama-3.1-8b-instruct:free", 
             "messages": messages,
             "temperature": 0.6,
             "stream": True
