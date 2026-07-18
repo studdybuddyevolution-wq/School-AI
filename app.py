@@ -481,9 +481,9 @@ def render_admin_orchestrator():
             "Content-Type": "application/json"
         }
         
-      # Using Meta's lightning-fast Llama 3 8B on the free tier!
+     # Let OpenRouter automatically choose the best available model!
         payload = {
-            "model": "meta-llama/llama-3.1-8b-instruct:free", 
+            "model": "openrouter/auto", 
             "messages": messages,
             "temperature": 0.6,
             "stream": True
