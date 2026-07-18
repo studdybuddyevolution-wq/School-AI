@@ -430,14 +430,11 @@ def render_financial_auditor():
 
 
 # ═══════════════════════════════════════════════════════════
-# MODULE 3 — ADMIN ORCHESTRATOR
-# ═══════════════════════════════════════════════════════════
-# ═══════════════════════════════════════════════════════════
 # MODULE 3 — ADMIN ORCHESTRATOR (AI GENERATIVE)
 # ═══════════════════════════════════════════════════════════
 def render_admin_orchestrator():
     st.markdown('<div class="module-title">📋 Admin Orchestrator</div>', unsafe_allow_html=True)
-    st.markdown("**Model:** `Qwen 2.5 0.5B` (via OpenRouter) · Generative AI Document Engine")
+    st.markdown("**Model:** `Qwen 2.5 7B` (via OpenRouter) · Generative AI Document Engine")
     st.markdown("---")
 
     DEFAULT = (
@@ -458,7 +455,7 @@ def render_admin_orchestrator():
             st.error("❌ Missing API Key. Please ensure 'OPENROUTER_API_KEY' is set in your environment.", icon="🚫")
             st.stop()
 
-        st.success("✅ Routing request to Qwen 0.5B...", icon="🧠")
+        st.success("✅ Routing request to Qwen 7B...", icon="🧠")
         st.markdown("### 📄 Official Document")
         
         doc_container = st.empty()
@@ -484,9 +481,9 @@ def render_admin_orchestrator():
             "Content-Type": "application/json"
         }
         
-        # Pointing specifically to Qwen 2.5 0.5B Instruct on OpenRouter
+        # Using the lightning-fast Qwen 2.5 7B model!
         payload = {
-            "model": "qwen/qwen-2.5-0.5b-instruct", 
+            "model": "qwen/qwen-2.5-7b-instruct:free", 
             "messages": messages,
             "temperature": 0.6,
             "stream": True
@@ -525,6 +522,7 @@ def render_admin_orchestrator():
                 
         except Exception as e:
             st.error(f"❌ Network Failure: {str(e)}")
+
 
 # ═══════════════════════════════════════════════════════════
 # MODULE 4 — FAST RAG TUTOR (UPGRADED APOLLO ENGINE)
