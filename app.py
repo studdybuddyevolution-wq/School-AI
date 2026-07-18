@@ -369,11 +369,13 @@ def render_financial_auditor():
                     df_chunk[amount_col] = pd.to_numeric(df_chunk[amount_col], errors='coerce').fillna(0)
 
                 df_chunk['desc_lower'] = df_chunk[desc_col].astype(str).str.lower()
-                pattern = '|'.join(NON_EDU)
-                mask_rule1 = df_chunk['desc_lower'].str.contains(pattern)
-                mask_rule2 = df_chunk[amount_col] > cost_threshold
-                flagged_rows = df_chunk[mask_rule1 | mask_rule2]
-                
+              # Rule 1: Flag if description contains bad keywords
+mask_rule1 = df_chunk['desc_lower'].str.contains(pattern)
+
+# Rule 2 (PaySim specific): Flag only if it's a TRANSFER AND over the threshold
+mask_rule2 = (df_chunk['desc_lower'] == 'transfer') & (df_chunk[amount_col] > cost_threshold)
+
+flagged_rows = df_chunk[mask_rule1 | mask_rule2]
                 total_processed += len(df_chunk)
                 total_flags += len(flagged_rows)
                 flagged_amount += int(flagged_rows[amount_col].sum())
