@@ -432,15 +432,16 @@ def render_financial_auditor():
 # ═══════════════════════════════════════════════════════════
 # MODULE 3 — ADMIN ORCHESTRATOR
 # ═══════════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════════
+# MODULE 3 — ADMIN ORCHESTRATOR (AI GENERATIVE)
+# ═══════════════════════════════════════════════════════════
 def render_admin_orchestrator():
     st.markdown('<div class="module-title">📋 Admin Orchestrator</div>', unsafe_allow_html=True)
-    st.markdown("**Model:** `DocGen-Pro` · Template-driven document engine · Keyword NLP routing · Zero API calls")
+    st.markdown("**Model:** `Qwen 2.5 0.5B` (via OpenRouter) · Generative AI Document Engine")
     st.markdown("---")
 
     DEFAULT = (
-        "Please draft a parent notification letter regarding the bus delay on Route 7B. "
-        "The bus will be approximately 45 minutes late today due to unexpected road maintenance "
-        "near the Highway 4 overpass. Students will be dropped off safely."
+        "Please draft a notification saying that on Tuesday a blood donation drive and assembly will be hosted so each tenth grader and their parents are required to come."
     )
 
     user_input  = st.text_area("Administrative Generation Request", DEFAULT, height=140, key="admin_input")
@@ -452,95 +453,78 @@ def render_admin_orchestrator():
         if not user_input.strip():
             st.warning("Please enter a request.", icon="⚠️")
             st.stop()
+            
+        if not OR_TOKEN or not OR_TOKEN.startswith("sk-or-"):
+            st.error("❌ Missing API Key. Please ensure 'OPENROUTER_API_KEY' is set in your environment.", icon="🚫")
+            st.stop()
 
-        with st.spinner("DocGen-Pro classifying request and selecting template…"):
-            time.sleep(0.8)
-        with st.spinner("Rendering institutional document…"):
-            time.sleep(1.1)
-
-        lo = user_input.lower()
-        is_transport = any(k in lo for k in ["bus", "delay", "route", "transport", "vehicle", "late", "driver"])
-        is_academic  = any(k in lo for k in ["exam", "test", "result", "marks", "grade", "assessment", "paper"])
-        is_event     = any(k in lo for k in ["meeting", "event", "pta", "ceremony", "function", "assembly", "visit"])
-        fd           = doc_date.strftime("%d %B %Y")
-        sn           = school_name.upper()
-
-        if is_transport:
-            label = "🚌 **Template Used:** Parent Communication — Transport Disruption Notice"
-            doc   = (
-                f"OFFICIAL PARENT COMMUNICATION\n{sn}\n"
-                f"Date    : {fd}\nRef No. : SCH/COMM/TRANS/{doc_date.strftime('%Y%m%d')}/01\n"
-                f"To      : Parents and Guardians of All Students\n"
-                f"Subject : IMPORTANT - School Bus Delay Notification\n\n"
-                f"Dear Parent / Guardian,\n\n"
-                f"The school bus service is experiencing an operational delay today.\n"
-                f"The safety and well-being of all students remains our highest priority.\n\n"
-                f"DETAILS OF THE DISRUPTION:\n"
-                f"  Reason  : Unexpected road maintenance / traffic disruption\n"
-                f"  Delay   : Approximately 40-50 minutes from the usual arrival time\n"
-                f"  Safety  : All students are aboard and safe\n\n"
-                f"ACTIONS TAKEN:\n"
-                f"  1. Bus supervisors notified and monitoring the situation.\n"
-                f"  2. Transport coordinator in direct contact with all drivers.\n"
-                f"  3. Students briefed and calm.\n\n"
-                f"WHAT YOU SHOULD DO:\n"
-                f"  - Make alternative pickup arrangements if required.\n"
-                f"  - Contact school transport helpline: +91-XXXX-XXXXXX\n"
-                f"  - Do not wait at the bus stop; students will be dropped at normal stops.\n\n"
-                f"We sincerely apologise for this inconvenience.\n\n"
-                f"Yours faithfully,\n_________________________________\nPrincipal\n{school_name}\nDate: {fd}\n\n"
-                f"[Official communication. Contact school office: 8:00 AM - 4:00 PM]"
-            )
-        elif is_academic:
-            label = "📝 **Template Used:** Academic Notice — Examination / Assessment Communication"
-            doc   = (
-                f"ACADEMIC NOTICE\n{sn}\n"
-                f"Date    : {fd}\nRef No. : SCH/ACAD/{doc_date.strftime('%Y%m%d')}/01\n"
-                f"To      : All Students and Parents / Guardians\n"
-                f"Subject : Important Academic Communication\n\n"
-                f"Dear Students and Parents,\n\n{user_input.strip()}\n\n"
-                f"Students are advised to adhere strictly to all examination guidelines.\n\n"
-                f"IMPORTANT REMINDERS:\n"
-                f"  1. Maintain punctuality for all sessions.\n"
-                f"  2. Carry Hall Ticket / Identity Card at all times.\n"
-                f"  3. No electronic devices in examination halls.\n"
-                f"  4. Grievances must be submitted in writing within 48 hours.\n\n"
-                f"Regards,\n_________________________________\nHead of Academics\n{school_name}\nDate: {fd}"
-            )
-        elif is_event:
-            label = "🎪 **Template Used:** Event / Meeting Circular"
-            doc   = (
-                f"EVENT / MEETING CIRCULAR\n{sn}\n"
-                f"Date    : {fd}\nRef No. : SCH/EVT/{doc_date.strftime('%Y%m%d')}/01\n"
-                f"To      : All Staff, Students and Parents / Guardians\n"
-                f"Subject : Forthcoming Event - Official Notice\n\n"
-                f"Dear All,\n\n{user_input.strip()}\n\n"
-                f"All participants are requested to arrive 15 minutes prior to the scheduled time.\n"
-                f"Formal attire is required unless otherwise communicated.\n\n"
-                f"With warm regards,\n_________________________________\nPrincipal\n{school_name}\nDate: {fd}"
-            )
-        else:
-            label = "📌 **Template Used:** General Institutional Memorandum"
-            doc   = (
-                f"INTERNAL MEMORANDUM\n{sn}\n"
-                f"Date    : {fd}\nRef No. : SCH/MEMO/{doc_date.strftime('%Y%m%d')}/01\n"
-                f"To      : All Concerned\nFrom    : Office of the Principal\n"
-                f"Subject : General Administrative Communication\n\n"
-                f"This memorandum is issued pursuant to the administrative request received on {fd}.\n\n"
-                f"COMMUNICATION:\n{user_input.strip()}\n\n"
-                f"All staff and students are requested to take note and comply accordingly.\n\n"
-                f"_________________________________\nPrincipal\n{school_name}\nDate: {fd}\n\n"
-                f"[OFFICIAL USE ONLY - DO NOT CIRCULATE OUTSIDE THE INSTITUTION]"
-            )
-
-        st.success("✅ Document generated successfully!", icon="📄")
-        st.markdown(label)
-        st.markdown(f'<div class="doc-output">{doc}</div>', unsafe_allow_html=True)
-        st.download_button(
-            "⬇️ Download Document (.txt)", doc,
-            f"school_doc_{doc_date.strftime('%Y%m%d')}.txt", "text/plain",
-            use_container_width=True)
-
+        st.success("✅ Routing request to Qwen 0.5B...", icon="🧠")
+        st.markdown("### 📄 Official Document")
+        
+        doc_container = st.empty()
+        collected_text = ""
+        
+        # Crafting the system prompt specifically for school administration
+        messages = [
+            {
+                "role": "system", 
+                "content": (
+                    f"You are the professional administrative assistant for {school_name}. "
+                    f"Today's date is {doc_date.strftime('%d %B %Y')}. "
+                    "Draft a formal, warm, and appropriate school notice, circular, or letter based on the user's prompt. "
+                    "Include headers, dates, and sign-offs naturally. Do not include any placeholders, meta-commentary, or markdown code blocks. Just output the final document text ready for printing."
+                )
+            },
+            {"role": "user", "content": user_input.strip()}
+        ]
+        
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {OR_TOKEN.strip()}",
+            "Content-Type": "application/json"
+        }
+        
+        # Pointing specifically to Qwen 2.5 0.5B Instruct on OpenRouter
+        payload = {
+            "model": "qwen/qwen-2.5-0.5b-instruct", 
+            "messages": messages,
+            "temperature": 0.6,
+            "stream": True
+        }
+        
+        try:
+            response = requests.post(url, headers=headers, json=payload, stream=True, timeout=30)
+            if response.status_code != 200:
+                st.error(f"API Error ({response.status_code}): {response.text}")
+                st.stop()
+                
+            # Stream the generated text live into the custom CSS doc box
+            for line in response.iter_lines():
+                if line:
+                    decoded = line.decode('utf-8').strip()
+                    if decoded.startswith("data: "):
+                        data_str = decoded[6:]
+                        if data_str == "[DONE]":
+                            break
+                        try:
+                            data_json = json.loads(data_str)
+                            token_text = data_json["choices"][0]["delta"].get("content", "")
+                            if token_text:
+                                collected_text += token_text
+                                doc_container.markdown(f'<div class="doc-output">{collected_text} █</div>', unsafe_allow_html=True)
+                        except Exception:
+                            pass
+                            
+            # Final render without the typing cursor
+            doc_container.markdown(f'<div class="doc-output">{collected_text}</div>', unsafe_allow_html=True)
+            
+            st.download_button(
+                "⬇️ Download Document (.txt)", collected_text,
+                f"school_doc_{doc_date.strftime('%Y%m%d')}.txt", "text/plain",
+                use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"❌ Network Failure: {str(e)}")
 
 # ═══════════════════════════════════════════════════════════
 # MODULE 4 — FAST RAG TUTOR (UPGRADED APOLLO ENGINE)
